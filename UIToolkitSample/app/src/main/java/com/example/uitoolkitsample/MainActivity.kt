@@ -11,6 +11,20 @@ import androidx.appcompat.app.AppCompatActivity
 import us.zoom.uitoolkit.SessionContext
 import us.zoom.uitoolkit.UiToolkitError
 import us.zoom.uitoolkit.UiToolkitView
+import com.google.gson.annotations.SerializedName
+
+data class JWTOptions(
+    @SerializedName("sessionName") val sessionName: String,
+    @SerializedName("role") val role: Int,
+    @SerializedName("userIdentity") val userIdentity: String,
+    @SerializedName("sessionkey") val sessionkey: String,
+    @SerializedName("geo_regions") val geo_regions: String,
+    @SerializedName("cloud_recording_option") val cloud_recording_option: Int,
+    @SerializedName("cloud_recording_election") val cloud_recording_election: Int,
+    @SerializedName("telemetry_tracking_id") val telemetry_tracking_id: String,
+    @SerializedName("video_webrtc_mode") val video_webrtc_mode: Int,
+    @SerializedName("audio_webrtc_mode") val audio_webrtc_mode: Int,
+)
 
 class MainActivity : AppCompatActivity() {
     private lateinit var uiToolkitView: UiToolkitView
@@ -19,6 +33,14 @@ class MainActivity : AppCompatActivity() {
     private val uiToolkitListener = object : UiToolkitView.Listener {
         override fun onError(error: UiToolkitError) {
             Toast.makeText(this@MainActivity, error.toString(), Toast.LENGTH_SHORT).show()
+        }
+
+        override fun onShareClicked() {
+            TODO("Not yet implemented")
+        }
+
+        override fun onShareEnded() {
+            TODO("Not yet implemented")
         }
 
         override fun onViewStarted() {
@@ -31,8 +53,28 @@ class MainActivity : AppCompatActivity() {
 
     }
     private val buttonClickListener = OnClickListener {
-        val sessionContext = SessionContext(Constants.SESSION_NAME, Constants.JWT, Constants.NAME)
-        uiToolkitView.joinSession(sessionContext)
+        val body = JWTOptions(
+            sessionName = Constants.SESSION_NAME,
+            role = 1,
+            userIdentity = null.toString(),
+            sessionkey = null.toString(),
+            geo_regions = null.toString(),
+            cloud_recording_option = 0,
+            cloud_recording_election = 0,
+            telemetry_tracking_id = null.toString(),
+            video_webrtc_mode = 0,
+            audio_webrtc_mode = 0
+        )
+
+        if (Constants.SDK_KEY.isNotEmpty() && Constants.SDK_SECRET.isNotEmpty()) {
+            val signature: String =
+                TokenGenerator.generateToken(body, Constants.SDK_KEY, Constants.SDK_SECRET)
+            println(signature)
+
+            val sessionContext =
+                SessionContext(Constants.SESSION_NAME, signature, Constants.NAME)
+            uiToolkitView.joinSession(sessionContext)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
