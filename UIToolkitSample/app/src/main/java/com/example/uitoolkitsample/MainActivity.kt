@@ -1,12 +1,18 @@
 package com.example.uitoolkitsample
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.view.View.GONE
 import android.view.View.OnClickListener
 import android.view.View.VISIBLE
 import android.widget.Button
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import us.zoom.uitoolkit.SessionContext
 import us.zoom.uitoolkit.UiToolkitError
@@ -29,6 +35,8 @@ data class JWTOptions(
 class MainActivity : AppCompatActivity() {
     private lateinit var uiToolkitView: UiToolkitView
     private lateinit var joinButton: Button
+    private lateinit var mediaProjectionManager: MediaProjectionManager
+    private lateinit var screenCaptureLauncher: ActivityResultLauncher<Intent>
 
     private val uiToolkitListener = object : UiToolkitView.Listener {
         override fun onError(error: UiToolkitError) {
@@ -36,11 +44,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onShareClicked() {
-            TODO("Not yet implemented")
+            println("onShareClicked")
+            screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
         }
 
         override fun onShareEnded() {
-            TODO("Not yet implemented")
+            println("onShareEnded")
         }
 
         override fun onViewStarted() {
@@ -86,6 +95,21 @@ class MainActivity : AppCompatActivity() {
 
         uiToolkitView.addListener(uiToolkitListener)
         joinButton.setOnClickListener(buttonClickListener)
+
+        mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+
+        // Register for activity result for screen capture intent
+        screenCaptureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val data: Intent? = result.data
+                if (data != null) {
+                    println("Screen capture permission granted!")
+                    uiToolkitView.onMediaProjectionResult(data)
+                }
+            } else {
+                println("Screen capture permission denied.")
+            }
+        }
 
         requestPermissions()
     }

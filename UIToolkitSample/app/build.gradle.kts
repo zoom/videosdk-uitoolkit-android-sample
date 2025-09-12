@@ -38,4 +38,8 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.10.0")
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")
     api("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-orgjson:0.12.6") {
+        exclude("group:org.json", "module:json")
+    }
 }
