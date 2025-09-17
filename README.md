@@ -21,13 +21,15 @@ git clone https://github.com/zoom/videosdk-uitookit-android-sample
 3. Navigate to `Constants.kt` and add valid values for the session context.
    - `NAME`: The name of the user who will be joining the session.
    - `SESSION_NAME`: The name of the session being joined. See [Sessions](https://developers.zoom.us/docs/video-sdk/android/sessions/) for more information.
-   - `JWT`: A valid Video SDK JWT.
+   - `SDK_KEY`: Your Video SDK Key.
+   - `SDK_SECRET`: Your Video SDK Secret.
 
     ```kotlin
     object Constants {
-        const val NAME = ""
-        const val SESSION_NAME = ""
-        const val JWT = ""
+       const val NAME = ""
+       const val SESSION_NAME = ""
+       const val SDK_KEY = ""
+       const val SDK_SECRET= ""
     }
     ```
 4. Select a target device and click run.
