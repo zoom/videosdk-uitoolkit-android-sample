@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -45,6 +47,8 @@ import us.zoom.sdk.ZoomVideoSDKLiveStreamStatus
 import us.zoom.sdk.ZoomVideoSDKLiveTranscriptionHelper
 import us.zoom.sdk.ZoomVideoSDKMultiCameraStreamStatus
 import us.zoom.sdk.ZoomVideoSDKNetworkStatus
+import us.zoom.sdk.ZoomVideoSDKOnHoldHelper
+import us.zoom.sdk.ZoomVideoSDKOnHoldUser
 import us.zoom.sdk.ZoomVideoSDKPasswordHandler
 import us.zoom.sdk.ZoomVideoSDKPhoneFailedReason
 import us.zoom.sdk.ZoomVideoSDKPhoneStatus
@@ -69,26 +73,30 @@ import us.zoom.sdk.ZoomVideoSDKTestMicStatus
 import us.zoom.sdk.ZoomVideoSDKUser
 import us.zoom.sdk.ZoomVideoSDKUserHelpRequestResult
 import us.zoom.sdk.ZoomVideoSDKUserHelper
+import us.zoom.sdk.ZoomVideoSDKVirtualBackgroundDataType
 import us.zoom.sdk.ZoomVideoSDKVideoCanvas
 import us.zoom.sdk.ZoomVideoSDKVideoHelper
 import us.zoom.sdk.ZoomVideoSDKVideoSubscribeFailReason
 import us.zoom.sdk.ZoomVideoSDKVideoView
 import us.zoom.sdk.ZoomVideoSDKWhiteboardHelper
 import us.zoom.uitoolkit.ZMUIToolKitAudioBtn
+import us.zoom.uitoolkit.ZMUIToolKitParticipantsBtn
 import us.zoom.uitoolkit.ZMUIToolKitLeaveBtn
 import us.zoom.uitoolkit.ZMUIToolKitMoreBtn
-import us.zoom.uitoolkit.ZMUIToolKitParticipantsBtn
 import us.zoom.uitoolkit.ZMUIToolKitShareBtn
+import us.zoom.uitoolkit.ZMUIToolKitSwitchCameraBtn
 import us.zoom.uitoolkit.ZMUIToolKitVideoBtn
 import us.zoom.uitoolkit.ZMUIToolkitVideoPage
 import us.zoom.uitoolkit.manager.ZMUIToolKitManager
 import us.zoom.uitoolkit.manager.ZMUIToolKitPiPHelper
+import us.zoom.uitoolkit.manager.ZMUIToolKitVirtualBackgroundManager
 import us.zoom.uitoolkitsample.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
 
     companion object {
         const val TAG = "MainActivity"
+        private const val SAMPLE_THUMBNAIL_MAX_EDGE = 512
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -97,14 +105,17 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
     private lateinit var shareBtn: ZMUIToolKitShareBtn
     private lateinit var leaveBtn: ZMUIToolKitLeaveBtn
     private lateinit var backBtn: ImageButton
+    private lateinit var switchCameraBtn: ZMUIToolKitSwitchCameraBtn
     private lateinit var participantsBtn: ZMUIToolKitParticipantsBtn
     private lateinit var moreBtn: ZMUIToolKitMoreBtn
     private lateinit var sessionNameTextView: TextView
     private lateinit var videoPage: ZMUIToolkitVideoPage
     private lateinit var connectingText: TextView
+    private var sampleVirtualBackgroundsRegistered = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UIToolKitApp.instance.ensureToolkitAttached()
         // Must be before setContentView so SurfaceViews position correctly in edge-to-edge mode
         WindowCompat.setDecorFitsSystemWindows(window, false)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -114,9 +125,17 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
         shareBtn = binding.shareBtn
         leaveBtn = binding.leaveBtn
         backBtn = binding.backBtn
+        switchCameraBtn = binding.switchCameraBtn
         sessionNameTextView = binding.sessionNameText
         participantsBtn = binding.participantsBtn
         moreBtn = binding.moreBtn
+        // Default is ALL (Settings, Chat, VB, recording, share). Do not permanently
+        // restrict the sample — it has no dedicated Chat/VB/recording toolbar buttons.
+        // Example (docs Example 5) — include only Chat + Settings:
+        // moreBtn.setIncludedItems(
+        //     ZMUIToolKitMoreMenuItems.CHAT or ZMUIToolKitMoreMenuItems.SETTINGS
+        // )
+        // Tip: use `or` to combine flags. `CHAT and SETTINGS` is 0 (Cancel only).
         videoPage = binding.videoPage
         connectingText = binding.connectingText
         val inSession = ZMUIToolKitManager.sharedInstance().isInSession()
@@ -124,14 +143,19 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
         audioBtn.visibility = if (inSession) View.VISIBLE else View.GONE
         shareBtn.visibility = if (inSession) View.VISIBLE else View.GONE
         leaveBtn.visibility = if (inSession) View.VISIBLE else View.GONE
+        switchCameraBtn.visibility = if (inSession) View.VISIBLE else View.GONE
         participantsBtn.visibility = if (inSession) View.VISIBLE else View.GONE
         moreBtn.visibility = if (inSession) View.VISIBLE else View.GONE
         connectingText.visibility = if (inSession) View.GONE else View.VISIBLE
         if (inSession) {
             sessionNameTextView.text = ZoomVideoSDK.getInstance().session?.sessionName
+            registerSampleVirtualBackgrounds()
         }
         backBtn.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
         setContentView(binding.root)
+        // Runs after ZMUIToolKitBtn's own post{} so Material's 24dp side padding
+        // cannot push Audio / More back off the screen.
+        binding.bottomControlBar.post { tightenToolbarButtons() }
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
             applyWindowInsets(windowInsets)
@@ -171,23 +195,54 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
         }
     }
 
+    private fun tightenToolbarButtons() {
+        val horizontalPadding = (2 * resources.displayMetrics.density).toInt()
+        listOf(audioBtn, videoBtn, shareBtn, participantsBtn, moreBtn).forEach { button ->
+            button.minWidth = 0
+            button.minimumWidth = 0
+            button.setPadding(
+                horizontalPadding,
+                button.paddingTop,
+                horizontalPadding,
+                button.paddingBottom
+            )
+        }
+    }
+
     private fun applyWindowInsets(windowInsets: WindowInsetsCompat) {
         val insets = windowInsets.getInsets(
             WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
         )
         binding.topBar.updatePadding(top = insets.top)
 
-        var leftPad = insets.left
-        var rightPad = insets.right
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            windowInsets.toWindowInsets()?.run {
-                leftPad = maxOf(leftPad,
-                    (getRoundedCorner(android.view.RoundedCorner.POSITION_BOTTOM_LEFT)?.radius ?: 0) / 2)
-                rightPad = maxOf(rightPad,
-                    (getRoundedCorner(android.view.RoundedCorner.POSITION_BOTTOM_RIGHT)?.radius ?: 0) / 2)
-            }
-        }
+        // The bar background stays full-bleed against the screen edge. Only the
+        // buttons are padded, so labels clear the rounded corner without a gap
+        // between the bar and the display border.
+        val leftPad = maxOf(
+            insets.left,
+            bottomCornerContentPadding(windowInsets, android.view.RoundedCorner.POSITION_BOTTOM_LEFT)
+        )
+        val rightPad = maxOf(
+            insets.right,
+            bottomCornerContentPadding(windowInsets, android.view.RoundedCorner.POSITION_BOTTOM_RIGHT)
+        )
         binding.bottomControlBar.updatePadding(left = leftPad, right = rightPad, bottom = insets.bottom)
+        binding.bottomControlBar.post {
+            binding.bottomControlBar.clipChildren = true
+            binding.bottomControlBar.clipToPadding = true
+        }
+    }
+
+    /** Half the corner radius keeps labels off the curve without narrowing the bar. */
+    private fun bottomCornerContentPadding(windowInsets: WindowInsetsCompat, position: Int): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return 0
+        val fromInsets = windowInsets.toWindowInsets()?.getRoundedCorner(position)?.radius ?: 0
+        val radius = if (fromInsets > 0) {
+            fromInsets
+        } else {
+            display?.getRoundedCorner(position)?.radius ?: 0
+        }
+        return radius / 2
     }
 
     override fun onRequestPermissionsResult(
@@ -266,18 +321,19 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
     // region ZoomVideoSDKDelegate
 
     override fun onSessionJoin() {
+        registerSampleVirtualBackgrounds()
         connectingText.visibility = View.GONE
         requestPermission()
         shareBtn.visibility = View.VISIBLE
         leaveBtn.visibility = View.VISIBLE
+        switchCameraBtn.visibility = View.VISIBLE
         participantsBtn.visibility = View.VISIBLE
         sessionNameTextView.text = ZoomVideoSDK.getInstance().session?.sessionName
         moreBtn.visibility = View.VISIBLE
     }
 
-    override fun onSessionLeave() {}
-
     override fun onSessionLeave(reason: ZoomVideoSDKSessionLeaveReason?) {
+        sampleVirtualBackgroundsRegistered = false
         val intent = Intent(this, JoinActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK
         }
@@ -287,8 +343,17 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
     override fun onError(errorCode: Int) {}
     override fun onUserJoin(userHelper: ZoomVideoSDKUserHelper?, userList: List<ZoomVideoSDKUser?>?) {}
     override fun onUserLeave(userHelper: ZoomVideoSDKUserHelper?, userList: List<ZoomVideoSDKUser?>?) {}
+    override fun onHoldJoined() {}
+    override fun onHoldUserJoin(
+        onHoldHelper: ZoomVideoSDKOnHoldHelper?,
+        userList: List<ZoomVideoSDKOnHoldUser?>?
+    ) {}
+    override fun onHoldUserLeave(
+        onHoldHelper: ZoomVideoSDKOnHoldHelper?,
+        userList: List<ZoomVideoSDKOnHoldUser?>?
+    ) {}
+
     override fun onUserVideoStatusChanged(videoHelper: ZoomVideoSDKVideoHelper?, userList: List<ZoomVideoSDKUser?>?) {}
-    override fun onShareNetworkStatusChanged(shareNetworkStatus: ZoomVideoSDKNetworkStatus?, isSendingShare: Boolean) {}
     override fun onUserAudioStatusChanged(audioHelper: ZoomVideoSDKAudioHelper?, userList: List<ZoomVideoSDKUser?>?) {}
     override fun onUserShareStatusChanged(shareHelper: ZoomVideoSDKShareHelper?, userInfo: ZoomVideoSDKUser?, status: ZoomVideoSDKShareStatus?) {}
     override fun onUserShareStatusChanged(shareHelper: ZoomVideoSDKShareHelper?, userInfo: ZoomVideoSDKUser?, shareAction: ZoomVideoSDKShareAction?) {}
@@ -324,7 +389,6 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
     override fun onSSLCertVerifiedFailNotification(info: ZoomVideoSDKSSLCertificateInfo?) {}
     override fun onCameraControlRequestResult(user: ZoomVideoSDKUser?, isApproved: Boolean) {}
     override fun onCameraControlRequestReceived(user: ZoomVideoSDKUser?, requestType: ZoomVideoSDKCameraControlRequestType?, requestHandler: ZoomVideoSDKCameraControlRequestHandler?) {}
-    override fun onUserVideoNetworkStatusChanged(status: ZoomVideoSDKNetworkStatus?, user: ZoomVideoSDKUser?) {}
     override fun onUserRecordingConsent(user: ZoomVideoSDKUser?) {}
     override fun onCallCRCDeviceStatusChanged(status: ZoomVideoSDKCRCCallStatus?) {}
     override fun onVideoCanvasSubscribeFail(fail_reason: ZoomVideoSDKVideoSubscribeFailReason?, pUser: ZoomVideoSDKUser?, view: ZoomVideoSDKVideoView?) {}
@@ -373,10 +437,66 @@ class MainActivity : AppCompatActivity(), ZoomVideoSDKDelegate {
     override fun onRealTimeMediaStreamsStatus(status: RealTimeMediaStreamsStatus?) {}
     override fun onRealTimeMediaStreamsFail(failReason: RealTimeMediaStreamsFailReason?) {}
 
+    /**
+     * Registers the sample app's bundled backgrounds once the session is ready.
+     *
+     * [ZoomVideoSDKVirtualBackgroundHelper.addVirtualBackgroundItem] copies the bitmap to a temp
+     * JPEG and does not take ownership, so the source bitmap is recycled after every add attempt.
+     * The catalogue is in-memory for the session; skip when Image items already exist so
+     * `onCreate` + `onSessionJoin` in the same session do not add duplicates.
+     */
+    private fun registerSampleVirtualBackgrounds() {
+        if (sampleVirtualBackgroundsRegistered) return
+        val helper = ZoomVideoSDK.getInstance().virtualBackgroundHelper ?: return
+        if (!helper.isSupportVirtualBackground) return
+
+        val existingItems = helper.virtualBackgroundItemList.orEmpty()
+        if (existingItems.any {
+                it?.type == ZoomVideoSDKVirtualBackgroundDataType.ZoomVideoSDKVirtualBackgroundDataType_Image
+            }) {
+            sampleVirtualBackgroundsRegistered = true
+            return
+        }
+        val manager = ZMUIToolKitVirtualBackgroundManager.sharedInstance()
+        listOf(R.drawable.san_francisco, R.drawable.earth, R.drawable.grass).forEach { resourceId ->
+            val bitmap = BitmapFactory.decodeResource(resources, resourceId) ?: return@forEach
+            val thumbnail = createThumbnail(bitmap)
+            val added = try {
+                manager.addImage(bitmap, thumbnail) != null
+            } catch (_: RuntimeException) {
+                false
+            }
+            if (!added && thumbnail != null && thumbnail !== bitmap && !thumbnail.isRecycled) {
+                thumbnail.recycle()
+            }
+            if (bitmap !== thumbnail && !bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
+        sampleVirtualBackgroundsRegistered = true
+    }
+
+    private fun createThumbnail(source: Bitmap): Bitmap? {
+        val width = source.width
+        val height = source.height
+        if (width <= 0 || height <= 0) return null
+        val maxEdge = SAMPLE_THUMBNAIL_MAX_EDGE
+        if (width <= maxEdge && height <= maxEdge) {
+            return source.copy(source.config ?: Bitmap.Config.ARGB_8888, false)
+        }
+        val scale = maxEdge.toFloat() / maxOf(width, height)
+        val scaledWidth = (width * scale).toInt().coerceAtLeast(1)
+        val scaledHeight = (height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(source, scaledWidth, scaledHeight, true)
+    }
+
     // endregion
 
     override fun onDestroy() {
-        super.onDestroy()
         ZoomVideoSDK.getInstance().removeListener(this)
+        super.onDestroy()
+        if (isFinishing) {
+            ZMUIToolKitManager.sharedInstance().cleanup()
+        }
     }
 }

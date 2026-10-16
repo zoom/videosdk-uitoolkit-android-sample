@@ -29,20 +29,32 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
 
+        <us.zoom.uitoolkit.ZMUIToolKitSwitchCameraBtn
+            android:id="@+id/switchCameraBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:visibility="gone"
+            app:layout_constraintStart_toEndOf="@id/backBtn"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
-        <!-- Session Name -->
+        <!-- Session name is centered on the bar, not in the gap between the
+             side buttons. The left side is wider (back + switch camera), so
+             equal margins keep the title on the screen center and clear of both. -->
         <TextView
             android:id="@+id/sessionNameText"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginStart="112dp"
+            android:layout_marginEnd="112dp"
+            android:ellipsize="end"
             android:gravity="center"
+            android:maxLines="1"
             android:textColor="@android:color/black"
             android:textSize="18sp"
             android:textStyle="bold"
-            app:layout_constraintStart_toEndOf="@id/backBtn"
-            app:layout_constraintEnd_toStartOf="@id/leaveBtn"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
 
@@ -81,13 +93,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Bottom Control Bar -->
+    <!-- Bottom Control Bar. The background stays flush with the screen.
+         Content padding is applied at runtime so labels clear the rounded corners. -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottomControlBar"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:background="@color/zm_grey"
         android:paddingTop="10dp"
         android:paddingBottom="5dp"
+        android:clipChildren="true"
+        android:clipToPadding="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -95,8 +111,11 @@
         <!-- Mic Button -->
         <us.zoom.uitoolkit.ZMUIToolKitAudioBtn
             android:id="@+id/audioBtn"
+            style="@style/Widget.Sample.SessionToolbarButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            app:layout_constrainedWidth="true"
+            app:layout_constraintHorizontal_chainStyle="spread"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toStartOf="@id/videoBtn"
             app:layout_constraintTop_toTopOf="parent" />
@@ -104,8 +123,10 @@
         <!-- Camera Button -->
         <us.zoom.uitoolkit.ZMUIToolKitVideoBtn
             android:id="@+id/videoBtn"
+            style="@style/Widget.Sample.SessionToolbarButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            app:layout_constrainedWidth="true"
             app:layout_constraintStart_toEndOf="@id/audioBtn"
             app:layout_constraintEnd_toStartOf="@id/shareBtn"
             app:layout_constraintTop_toTopOf="parent" />
@@ -113,8 +134,10 @@
         <!-- Share Screen Button -->
         <us.zoom.uitoolkit.ZMUIToolKitShareBtn
             android:id="@+id/shareBtn"
+            style="@style/Widget.Sample.SessionToolbarButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            app:layout_constrainedWidth="true"
             app:layout_constraintStart_toEndOf="@id/videoBtn"
             app:layout_constraintEnd_toStartOf="@id/participantsBtn"
             app:layout_constraintTop_toTopOf="parent" />
@@ -122,8 +145,10 @@
         <!-- Participants Button -->
         <us.zoom.uitoolkit.ZMUIToolKitParticipantsBtn
             android:id="@+id/participantsBtn"
+            style="@style/Widget.Sample.SessionToolbarButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            app:layout_constrainedWidth="true"
             app:layout_constraintStart_toEndOf="@id/shareBtn"
             app:layout_constraintEnd_toStartOf="@id/moreBtn"
             app:layout_constraintTop_toTopOf="parent" />
@@ -131,9 +156,10 @@
         <!-- More Button -->
         <us.zoom.uitoolkit.ZMUIToolKitMoreBtn
             android:id="@+id/moreBtn"
+            style="@style/Widget.Sample.SessionToolbarButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="gone"
+            app:layout_constrainedWidth="true"
             app:layout_constraintStart_toEndOf="@id/participantsBtn"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />

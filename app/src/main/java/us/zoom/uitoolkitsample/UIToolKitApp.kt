@@ -22,9 +22,11 @@ class UIToolKitApp : Application() {
             enableLog = true
         }
         ZoomVideoSDK.getInstance().initialize(this, sdkInitParams)
+        ensureToolkitAttached()
+    }
+
+    fun ensureToolkitAttached() {
         ZMUIToolKitManager.sharedInstance().attach(this, ZoomVideoSDK.getInstance())
-
-
     }
 
     fun getAppContext(): UIToolKitApp {

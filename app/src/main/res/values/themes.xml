@@ -20,6 +20,21 @@
         <item name="android:textColor">#232333</item>
     </style>
 
+    <style name="Widget.Sample.SessionToolbarButton" parent="Widget.Material3.Button">
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingLeft">2dp</item>
+        <item name="android:paddingRight">2dp</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="iconPadding">2dp</item>
+    </style>
+
     <!-- Shape for top rounded corners -->
     <style name="ShapeAppearance.App.LargeComponent" parent="ShapeAppearance.Material3.Corner.Large">
         <item name="cornerFamily">rounded</item>

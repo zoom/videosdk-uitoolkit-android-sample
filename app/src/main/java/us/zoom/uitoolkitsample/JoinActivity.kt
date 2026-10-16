@@ -38,6 +38,7 @@ class JoinActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UIToolKitApp.instance.ensureToolkitAttached()
         setContentView(R.layout.activity_join)
         joinBtn = findViewById(R.id.btnJoin)
         tvTitle = findViewById(R.id.tvTitle)
@@ -70,6 +71,7 @@ class JoinActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        UIToolKitApp.instance.ensureToolkitAttached()
         updateJoinBtn()
     }
 
